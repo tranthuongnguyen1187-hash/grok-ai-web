@@ -82,11 +82,11 @@
       document.getElementById('q').value = '';
 
       // Tìm Google
-      const gRes = await fetch(`https://api.allorigins.ml/get?url=${encodeURIComponent('https://www.google.com/search?q=' + q)}`).then(r=>r.json());
+      const gRes = await fetch(`https://corsproxy.io/?url=${encodeURIComponent('https://www.google.com/search?q=' + q)}`).then(r=>r.json());
       const gLinks = [...gRes.contents.matchAll(/<a href="\/url\?q=(https?:\/\/[^&]+)&/g)].map(m=>decodeURIComponent(m[1])).slice(0,6);
 
       // Tìm X
-      const xRes = await fetch(`https://api.allorigins.ml/get?url=${encodeURIComponent('https://nitter.net/search?f=tweets&q=' + q)}`).then(r=>r.json());
+      const xRes = await fetch(`https://corsproxy.io/?url=${encodeURIComponent('https://nitter.net/search?f=tweets&q=' + q)}`).then(r=>r.json());
       const xTweets = [...xRes.contents.matchAll(/<div class="tweet-content">([\s\S]*?)<\/div>/g)].map(m=>m[1].trim().replace(/<[^>]+>/g,'')).slice(0,3);
 
       // Độ tin cậy
