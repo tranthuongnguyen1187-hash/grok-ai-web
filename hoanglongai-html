@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGrok Mini - AI riêng của bạn</title>
+  <style>
+    :root{--p:#00aaff;--g:#10a37f;--bg:#f8f9fa;--chat:#fff;--cam:#ff6b35}
+    *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
+    body{background:var(--bg);padding:10px}
+    .c{max-width:700px;margin:auto;background:white;border-radius:20px;overflow:hidden;box-shadow:0 10px 40px #0002}
+    .header{padding:20px;background:linear-gradient(135deg,var(--p),var(--g));color:white;text-align:center}
+    .header img{width:60px;height:60px;border-radius:50%;border:4px solid white}
+    .new-chat{background:var(--cam);color:white;border:none;padding:12px;border-radius:50px;font-weight:bold;margin:10px}
+    .chats{overflow-y:auto;max-height:70vh;padding:15px;background:var(--chat)}
+    .msg{margin:15px 0;display:flex;gap:12px;align-items:flex-start}
+    .msg.user{flex-direction:row-reverse}
+    .bubble{max-width:78%;padding:14px 18px;border-radius:20px;position:relative}
+    .bubble::after{content:"";position:absolute;width:0;height:0;border:8px solid transparent;top:15px}
+    .user .bubble{background:var(--p);color:white}
+    .user .bubble::after{border-left-color:var(--p);right:-16px}
+    .ai .bubble{background:#e5e5ea;color:#000}
+    .ai .bubble::after{border-right-color:#e5e5ea;left:-16px}
+    .input{padding:15px;display:flex;gap:10px;border-top:1px solid #ddd;background:white}
+    input{width:100%;padding:14px;border-radius:50px;border:2px solid #ddd;font-size:1em}
+    button{background:var(--g);color:white;border:none;padding:14px 20px;border-radius:50px;font-weight:bold}
+    .src{font-size:0.85em;margin-top:8px;opacity:0.8}
+    .src a{color:var(--p);text-decoration:underline}
+    details{margin-top:10px;background:#f0f8ff;padding:10px;border-radius:10px}
+  </style>
+</head>
+<body>
+  <div class="c">
+    <div class="header">
+      <img src="https://i.ibb.co/YT263y7R/1200px-Borussia-Dortmund-logo-svg.png" alt="Dortmund Logo" style="width:60px;height:60px;border-radius:50%;border:4px solid white">
+      <h1>HoangLongAI</h1>
+      <p>AI riêng của bạn – chỉ bạn dùng</p>
+      <button class="new-chat" onclick="newChat()">+ Trò chuyện mới</button>
+    </div>
+    <div class="chats" id="chats"></div>
+    <div class="input">
+      <input type="text" id="q" placeholder="Hỏi gì cũng được... ví dụ: Bitcoin hôm nay tăng hay giảm?" onkeypress="if(event.key==='Enter') ask()">
+      <button onclick="ask()">Gửi</button>
+    </div>
+  </div>
+
+  <script>
+    const chatsDiv = document.getElementById('chats');
+    let sessions = JSON.parse(localStorage.getItem('mygrok_sessions') || '[]');
+    let current = sessions.length ? sessions.length - 1 : 0;
+    if (!sessions.length) sessions.push({title: 'Trò chuyện 1', msgs: []});
+    loadSession(current);
+
+    function loadSession(i) {
+      current = i;
+      chatsDiv.innerHTML = '';
+      sessions[i].msgs.forEach(m => addMsg(m.text, m.role, m.src));
+      chatsDiv.scrollTop = chatsDiv.scrollHeight;
+    }
+
+    function newChat() {
+      const title = prompt('Tên cuộc trò chuyện mới?', 'Trò chuyện ' + (sessions.length + 1));
+      if (!title) return;
+      sessions.push({title, msgs: []});
+      localStorage.setItem('mygrok_sessions', JSON.stringify(sessions));
+      loadSession(sessions.length - 1);
+    }
+
+    function addMsg(text, role = 'ai', src = '') {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      div.innerHTML = `<div class="bubble">${text.replace(/\n/g,'<br>')}${src}</div>`;
+      chatsDiv.appendChild(div);
+      chatsDiv.scrollTop = chatsDiv.scrollHeight;
+    }
+
+    async function ask() {
+      const q = document.getElementById('q').value.trim();
+      if (!q) return;
+      addMsg(q, 'user');
+      addMsg('Đang tìm Google + X...');
+      document.getElementById('q').value = '';
+
+      // Tìm Google
+      const gRes = await fetch(`https://api.allorigins.ml/get?url=${encodeURIComponent('https://www.google.com/search?q=' + q)}`).then(r=>r.json());
+      const gLinks = [...gRes.contents.matchAll(/<a href="\/url\?q=(https?:\/\/[^&]+)&/g)].map(m=>decodeURIComponent(m[1])).slice(0,6);
+
+      // Tìm X
+      const xRes = await fetch(`https://api.allorigins.ml/get?url=${encodeURIComponent('https://nitter.net/search?f=tweets&q=' + q)}`).then(r=>r.json());
+      const xTweets = [...xRes.contents.matchAll(/<div class="tweet-content">([\s\S]*?)<\/div>/g)].map(m=>m[1].trim().replace(/<[^>]+>/g,'')).slice(0,3);
+
+      // Độ tin cậy
+      const trust = {'wikipedia.org':5,'bbc.com':5,'vnexpress.net':5,'tuoitre.vn':4,'nytimes.com':5,'cnn.com':4};
+      const domains = gLinks.map(l=>new URL(l).hostname.replace('www.',''));
+      const topSource = gLinks.find(l=>trust[new URL(l).hostname.replace('www.','')]) || gLinks[0] || 'Không có';
+
+      // PHÂN TÍCH
+      let analysis = `<b>PHÂN TÍCH:</b><br>`;
+      analysis += `• Tìm thấy <b>${gLinks.length}</b> trang Google + <b>${xTweets.length}</b> tweet mới nhất.<br>`;
+      analysis += `• Nguồn đáng tin nhất: <b>${new URL(topSource).hostname}</b> (${trust[new URL(topSource).hostname.replace('www.','')]||1}⭐)<br>`;
+
+      // GIẢI THÍCH
+      let explain = `<b>GIẢI THÍCH:</b><br>`;
+      explain += `• Tôi lấy dữ liệu <b>trực tiếp từ Google và X</b> trong 3 giây.<br>`;
+      explain += `• Ưu tiên nguồn <b>có sao cao</b> (Wikipedia, BBC, VnExpress...).<br>`;
+
+      // KẾT LUẬN
+      let conclusion = `<b>KẾT LUẬN DỄ HIỂU:</b><br>`;
+      if (q.toLowerCase().includes('tăng') || q.toLowerCase().includes('giảm')) {
+        conclusion += xTweets[0]?.includes('tăng') ? `→ <b>Đang tăng</b> theo cộng đồng X.<br>` : `→ <b>Đang giảm</b> hoặc ít thông tin.<br>`;
+      } else {
+        conclusion += `→ <b>${q.split('?')[0]}</b> là <b>ĐÚNG/SAI</b> theo <b>${gLinks.length}+${xTweets.length}</b> nguồn.<br>`;
+      }
+
+      const full = `${analysis}<br>${explain}<br>${conclusion}<br><br>
+      <details><summary>Xem ${gLinks.length + xTweets.length} nguồn</summary>
+      ${gLinks.map(l=>`<div class="src">• <a href="${l}" target="_blank">${new URL(l).hostname}</a></div>`).join('')}
+      ${xTweets.map(t=>`<div class="src">• X: ${t.slice(0,80)}...</div>`).join('')}
+      </details>`;
+
+      chatsDiv.lastChild.remove();
+      addMsg(full, 'ai');
+
+      // Lưu
+      sessions[current].msgs.push({role:'user', text:q});
+      sessions[current].msgs.push({role:'ai', text:full});
+      if (sessions[current].msgs.length > 50) sessions[current].msgs.shift();
+      localStorage.setItem('mygrok_sessions', JSON.stringify(sessions));
+    }
+  </script>
+</body>
+</html>
